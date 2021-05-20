@@ -1,8 +1,42 @@
+# This workflow installs the latest version of Terraform CLI.
+# On pull request events, this workflow will run `terraform init`, `terraform fmt`, and `terraform plan` and post the output to a pr
+# 
+# It will also run a TF security check using https://github.com/marketplace/actions/terraform-security-scan
+# and will run a cloud cost estimate using https://www.infracost.io/docs/
+# To use this workflow, you will need to complete the following setup steps.
+#
+# 1. Create a `main.tf` file in the root of this repository with the `remote` backend and one or more resources defined.
+#   Example `main.tf`:
+#     # The configuration for the `remote` backend.
+#     terraform {
+#       backend "s3" {
+#        bucket = "bucket"
+#        key    = "key"
+#        region = "region"
+#        acl    = "bucket-owner-full-control"
+#      }
+#     }
+#
+#     # An example resource that does nothing.
+#     resource "null_resource" "example" {
+#       triggers = {
+#         value = "A example resource that does nothing!"
+#       }
+#     }
+#
+#
+# 2. Generate an api key using https://www.infracost.io/docs/ and add it to GitHub Secrets
+#
+# 3. Generate an aws access key ID and secret access key and add it to GitHub Secrets
+#   
+
+
 name: pr-checks
 on:
 	workflow_dispatch:
 	pull_request:
     branches: [ $default-branch ]
+       - '**.tf'
 	
 jobs:
 	pr-check:
@@ -13,6 +47,7 @@ jobs:
 		runs-on: ubuntu-latest
 		steps:
 		- uses: actions/checkout@v2
+
 		- uses: hashicorp/setup-terraform@v1
 
 		- name: Terraform fmt
