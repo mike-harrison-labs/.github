@@ -1,0 +1,77 @@
+name: pr-checks
+on:
+	workflow_dispatch:
+	pull_request:
+    branches: [ $default-branch ]
+	
+jobs:
+	pr-check:
+		env:
+			AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+			AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+			AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+		runs-on: ubuntu-latest
+		steps:
+		- uses: actions/checkout@v2
+		- uses: hashicorp/setup-terraform@v1
+
+		- name: Terraform fmt
+			id: fmt
+			run: terraform fmt -check
+			continue-on-error: true
+
+		- name: Terraform Init
+			id: init
+		run: terraform init
+
+		- name: Terraform Validate
+			id: validate
+			run: terraform validate -no-color
+
+		- name: Terraform Plan
+			id: plan
+			run: terraform plan -no-color -out ./plan
+			continue-on-error: true
+
+	- uses: actions/github-script@0.9.0
+		if: github.event_name == 'pull_request'
+		env:
+			PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+		with:
+			github-token: ${{ secrets.GITHUB_TOKEN }}
+			script: |
+				const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+				#### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+				#### Terraform Validation 🤖${{ steps.validate.outcome }}
+				#### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+				<details><summary>Show Plan</summary>
+
+				\`\`\`${process.env.PLAN}\`\`\`
+
+				</details>
+
+				*Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+				github.issues.createComment({
+					issue_number: context.issue.number,
+					owner: context.repo.owner,
+					repo: context.repo.repo,
+					body: output
+				})
+					
+		- name: Run infracost diff
+			uses: infracost/infracost-gh-action@master # Use a specific version instead of master if locking is preferred
+			env:
+				INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+				GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Do not change
+				# See the cloud credentials section for the options
+			with:
+				entrypoint: /scripts/ci/diff.sh # Do not change
+				path: ./plan
+				terraform_plan_flags: -var-file=my.tfvars
+		
+		- name: Terraform security scan
+			uses: triat/terraform-security-scan@v2.2.1
+			env:
+				GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
