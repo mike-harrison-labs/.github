@@ -1,0 +1,11 @@
+{
+    "name": "Python Quality Gate",
+    "description": "PR Checks for python",
+    "iconName": "quality_check",
+    "categories": [
+        "python"
+    ],
+    "filePatterns": [
+        "*.py"
+    ]
+}
